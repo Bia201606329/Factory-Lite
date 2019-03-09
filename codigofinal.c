@@ -22,9 +22,9 @@
 
 
 uint16_t max = 980, min = 255; //variaveis globais
-uint8_t levantado = 0, bit_pos = 0, sinal_acabou;
+uint8_t levantado = 0, bit_pos = 0, dados=0, sinal_acabou;
 
-uint32_t volatile sinal, aux = 0;
+uint32_t volatile dados, aux = 0;
 
 void adc_init(void)
 {
@@ -177,7 +177,7 @@ void timer_ir() {
   TCCR2B = 0; //stop timer
   TCCR2A = 0; //choose normal working mode
   TCNT2 = 0; //start timer with the value 0
-  TCCR2B = (7<<CA20) //choose TP=1024
+  TCCR2B = (7<<CS20); //choose TP=1024
 }
 
 void int0_init() {
@@ -206,7 +206,7 @@ ISR(INT0_vect) {
     }
     if (bit_pos == 0) { //If tcnt2>254, the last bit arrived
       sinal_acabou = 1;
-      sinal = aux;
+      dados = aux;
       aux = 0;
     }
   }
@@ -235,13 +235,13 @@ int main() {
 
     switch (state) {
       case (0):
-        if (VAL_ON == sinal  && (0 == levantado)) {
+        if (VAL_ON == dados  && (0 == levantado)) {
           state = 1;
           dados = 0;
         }
        
       case (1):
-        if (VAL_ON == sinal ) {
+        if (VAL_ON == dados ) {
           state = 0;
           dados = 0;
         }
@@ -250,7 +250,7 @@ int main() {
           dados = 0;
         }
       case (2):
-        if (VAL_ON == sinal ) {
+        if (VAL_ON == dados ) {
           state = 0;
           dados = 0;
         }
