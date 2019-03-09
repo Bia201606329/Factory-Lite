@@ -3,9 +3,9 @@
 #include <avr/interrupt.h>
 
 #define DIR_ESQ PD5 //Dir1: controls the direction of the left wheel.
-					//If PD5=0 it goes backwards, if PD5=1 it moves forward
+          //If PD5=0 it goes backwards, if PD5=1 it moves forward
 #define DIR_DIR PD7 //Dir2: controls the direction of the right wheel.
-					//If PD7=0 it goes backwards, if PD7=1 it moves forward
+          //If PD7=0 it goes backwards, if PD7=1 it moves forward
 #define Ki 5
 #define Kp 130
 #define Kd 25
@@ -29,9 +29,9 @@ uint32_t volatile sinal, aux = 0;
 void adc_init(void)
 {
   ADMUX = (1 << REFS0);     //select AVCC
-  	  	  	  	  	  	    //and set everything else to 0
+                            //and set everything else to 0
   ADCSRA = (1 << ADEN) | 7; //enable the ADC and select a prescale = 128
-  	  	  	  	  	  	  	//(16MHz/128 = 125kHz the closest to 200kHz)
+                            //(16MHz/128 = 125kHz the closest to 200kHz)
 
 }
 
@@ -45,7 +45,7 @@ int readAdc(char chan) //we use a char variable to have 8 bits
   valor = ADCW;                 //ADCW puts together ADCL and ADCH
 
   if (valor < min) min = ADCW;  //since we couldn't predict the values max and min
-  	  	  	  	  	  	  	  	//we check for them every time a value is read
+                                //we check for them every time a value is read
   else if (ADCW > max) max = ADCW;
   norm = (ADCW - min);          //due to overflow issues we can't do all this operations at once
   norm_f = (norm * 1000) / (max - min);
@@ -92,13 +92,13 @@ void controlo_pos(int pos) {
 
   proportional = pos - 2000; //Ideally, the central position is 2000
                              //So we get the position error:
-  	  	  	  	  	  	  	 //positive number means the car is on the right of the black line,
-  	  	  	  	  	  	  	 //negative number means the car is on the left of the black line.
+                             //positive number means the car is on the right of the black line,
+                             //negative number means the car is on the left of the black line.
   derivative = proportional - last_proportional; //Reflects the response speed of the car.
                                                  //The large derivative value means the fast response speed
 
   integral += proportional; //When the absolution value is large the error accumulation is large too,
-  	  	  	  	  	  	  	//which means the car go far away from the route
+                            //which means the car go far away from the route
 
   last_proportional = proportional;
 
@@ -191,7 +191,7 @@ ISR(INT0_vect) {
   if (!sinal_acabou) { //if there is nothing to read
     TCNT2 = 0;
     while ((PIND & (1 << IR_PIN))) { //waits for the end of the reading
-    	if (TCNT2 >= 254) {
+      if (TCNT2 >= 254) {
         break; //if the timer overflows it means that the signal ended
         bit_pos = 0;
       }
@@ -239,12 +239,14 @@ int main() {
           state = 1;
           dados = 0;
         }
-        if ((sinal != VAL_ON) && (1 == levantado)) {
-          state = 2;
-        }
+       
       case (1):
         if (VAL_ON == sinal ) {
           state = 0;
+          dados = 0;
+        }
+        if (1 == levantado) {
+          state = 2;
           dados = 0;
         }
       case (2):
@@ -252,60 +254,26 @@ int main() {
           state = 0;
           dados = 0;
         }
+        if (0 == levantado) {
+          state = 1;
+          dados = 0;
+        }
     }
+    
 
-    if (0 == state) {
-      PORTD = PORTD & ~((1 << BUZZER)); //turn off buzzer
-      PORTD = PORTD & ~((1 << LED_VERDE)); //turn off green LED
-      PORTD |= (1 << LED_VERM); //turn on red LED
-
-      if (levantado == 1) {
-        PORTD = PORTD & ~((1 << LED_VERM)); //turn off red LED
-        PORTB |= (1 << LED_AZUL); //turn on blue LED
-      }
-
-      else {
-        PORTB = PORTB & ~((1 << LED_AZUL)); //turn off blue LED
-      }
-
+   if (0 == state) {
       M_ESQ = 0;
       M_DIR = 0;
 
     }
-    if (1 == state) {
-      PORTD = PORTD & ~((1 << BUZZER)); //turn off the buzzer
-      PORTD = PORTD & ~((1 << LED_VERM)); //turn off the red LED
-      if (levantado == 1) {
-        PORTD = PORTD & ~((1 << LED_VERDE));
-        PORTB |= (1 << LED_AZUL); //turn on the blue LED
-      }
-
-      else {
-        PORTB = PORTB & ~((1 << LED_AZUL)); //turn off the blue LED
-        PORTD |= (1 << LED_VERDE); //turn on the green LED
-      }
-
-    }
+         
     if (2 == state) {
-      PORTD |= (1 << BUZZER); //turn on the buzzer
-      PORTD = PORTD & ~((1 << LED_VERM)); //turn off the red LED
-      PORTD = PORTD & ~((1 << LED_VERDE)); //turn off the green LED
-
-      if (levantado == 1) {
-        PORTB |= (1 << LED_AZUL); //turn on the blue LED
+      
         M_ESQ = 0;
         M_DIR = 0;
       }
-      else {
-        PORTB = PORTB & ~((1 << LED_AZUL)); //turn off the blue LED
-        M_ESQ = 0;
-        M_DIR = 0;
-
-      }
-    }
+   
     sinal_acabou = 0; //ready to read a new signal from the remote control
-
-
 
   }
 
