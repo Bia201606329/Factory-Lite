@@ -1,0 +1,367 @@
+#include <avr/io.h>
+#include <util/delay.h>
+#include <avr/interrupt.h>
+#include "lcd.h"
+#include "lcd.c"
+
+#define DIR_DIR PD5 //Dir1
+#define DIR_ESQ PD7 //Dir2
+#define Ki 5
+#define Kp 130
+#define Kd 25
+#define M_ESQ OCR1A //valor pwm do motor da esquerda (pino 9-PWM1)
+#define M_DIR OCR1B //valor pwm do motor da direita (pino 10-PWM2)
+#define motor_esq_vel_med 32000  //valor (motor esquerda) para o carro andar em frente
+#define motor_dir_vel_med 32000 //valor (motor direta) para o carro andar em frente
+#define LED_AZUL PB0
+#define LED_VERDE PD3
+#define LED_VERM PD4
+#define BUZZER PD6 //buzzer e led vermelho
+#define IR_PIN PD2
+#define VALUE_IR_ON 4294959390
+
+
+uint16_t max = 980, min = 255; //variaveis globais
+uint8_t levantado = 0, perdido = 0, bit_IR = 0, ir_acabou_q;
+
+uint32_t volatile dados, buff_ir = 0;
+
+void adc_init(void)
+{
+  ADMUX = (1 << REFS0);   //select
+  ADCSRA = (1 << ADEN) | 7; //enable and prescale = 128 (16MHz/128 = 125kHz)
+  Serial.begin(9600);
+}
+
+int readAdc(char chan)
+{
+  uint32_t norm, norm_f, valor;
+  ADMUX = (1 << REFS0) | (chan & 0x0f); //select input and ref
+  ADCSRA |= (1 << ADSC);               //start the conversion
+  while (ADCSRA & (1 << ADSC));        //wait for end of conversion
+  
+  valor = ADCW;
+
+  if (valor < min) min = ADCW;
+  else if (ADCW > max) max = ADCW;
+  norm = (ADCW - min);
+  norm_f = (norm * 1000) / (max - min);
+
+  return norm_f;
+}
+
+//the values of Max and Min were predicted by sampling the data for many times. The car run along the
+//black line and swing from side to side, so that we could get a precise value of Max and Min
+
+
+int deteta_pos() {
+  int i, sens[5];
+  uint32_t soma = 0;
+  float pos_med_1, pos_med_2, pos_med_3, pos_med_4, pos;
+  for (i = 0; i < 5; i++) {
+    sens[i] = readAdc(i);
+    //           Serial.print(i);
+    //           Serial.print("-");
+    //           Serial.println(sens[i]);
+    soma = soma + sens[i];
+
+  }
+
+  pos_med_1 = ((float)1000 / (float)soma) * (sens[1]);
+  pos_med_2 = ((float)2000 / (float)soma) * (sens[2]);
+  pos_med_3 = ((float)3000 / (float)soma) * (sens[3]);
+  pos_med_4 = ((float)4000 / (float)soma) * (sens[4]);
+  pos = pos_med_1 + pos_med_2 + pos_med_3 + pos_med_4;
+
+
+  if ((sens[0] < 150) && (sens[1] < 150) && (sens[2] < 150) && (sens[3] < 150) && (sens[4] < 150)) //se o carro for levantado, os motores desligam
+  {
+    levantado = 1;
+  }
+  else levantado = 0;
+
+  //   if((sens[0]>990) && (sens[1]>990) && (sens[2]>990) && (sens[3]>990) && (sens[4]>990)) //se o carro se perder - nao detetar a linha preta
+  //  {
+  //perdido=1;
+  //  }
+
+
+  return (int)pos;
+}
+
+void controlo_pos(int pos) {
+  int32_t proportional, derivative, integral, last_proportional, power_error, M_ESQ_V, M_DIR_V;
+  int dir, esq;
+
+  //Firstly, we adjust Kp; set the Ki and Kd to 0, and adjust the value of Kp
+  //to make the car run along the black line.
+  //Then, adjust Ki and Kd; set the parameters to a small value or 0.
+
+  proportional = pos - 2000; //Idealmente a posicao central é 2000.
+  //Assim vemos qual é o erro da posiçao
+  derivative = proportional - last_proportional; //Reflete a resposta da velocidade do carro
+  //Quanto maior a derivada mais rapida
+  //a resposta do carro
+  integral += proportional; // Soma de todos os erros. Se for muito grande significa
+  //que o carro se está a afastar da linha
+
+  last_proportional = proportional;
+
+  power_error = proportional * Kp + derivative * Kd + integral * Ki;
+
+  //Serial.println(power_error);
+
+  if (levantado == 1) { //se o carro for levantado os motores desligam-se
+    M_ESQ = 0;
+    M_DIR = 0;
+
+
+  }
+
+  //se o valor do erro for positivo significa que o carro tem de virar à esquerda
+  //se o valor do erro for negativo significa que o carro tem de virar à direita
+
+  else {
+
+    M_ESQ_V =  motor_esq_vel_med - power_error;
+    M_DIR_V =  motor_dir_vel_med + power_error;
+
+
+
+    if (M_ESQ_V > 65536) {
+      M_ESQ = 65530;
+    }
+    if (M_DIR_V > 65536) {
+      M_DIR = 65530;
+    }
+
+    if (M_DIR_V < 0) { //
+      M_ESQ = M_ESQ_V;
+      M_DIR = motor_dir_vel_med;
+      PORTD |= (1 << DIR_DIR);
+      PORTD = PORTD & ~(1 << DIR_ESQ);
+    }
+    else if (M_ESQ_V < 0) {
+      M_DIR = M_DIR_V;
+      M_ESQ = motor_esq_vel_med;
+      PORTD |= (1 << DIR_ESQ);
+      PORTD = PORTD & ~(1 << DIR_DIR);
+
+    }
+    else {
+      PORTD |= (1 << DIR_DIR);
+      PORTD |= (1 << DIR_ESQ);
+      M_ESQ = M_ESQ_V;
+      M_DIR = M_DIR_V;
+
+    }
+
+  }
+
+}
+void motores_pwm() {
+
+  DDRD = DDRD | (1 << DIR_DIR); //PD5 e PD7 outputs
+  DDRD = DDRD | (1 << DIR_ESQ);
+
+
+  DDRB |= (1 << DDB1) | (1 << DDB2); // PB1 and PB2 is now an output
+
+  ICR1 = 0xFFFF; // set TOP to 16bit
+
+  OCR1A = 0; // set PWM bottom value=0 on motor esq
+
+  OCR1B = 0; // set PWM bottom value=0 on motor dir
+
+  TCCR1A |= (1 << COM1A1) | (1 << COM1B1); // Clear OC1A/OC1B on Compare Match
+  //(Set output to low level)
+
+  TCCR1A |= (1 << WGM11);
+  TCCR1B |= (1 << WGM12) | (1 << WGM13);
+  // set Fast PWM mode using ICR1 as TOP
+
+  TCCR1B |= (1 << CS10); // START the timer with no prescaler
+}
+
+
+
+//void imprimir_lcd(uint16_t pos) {
+//  char str[4], stresq[16]="virar a esquerda", strdir[15]="virar a direita", strcen[6]="centro", strperdido[8]="Socorro!";
+//  sprintf(str, "pos=%d", pos);
+//  if(levantado=0){
+//    if(perdido=0){
+//    lcd_clrscr(); //limpa
+//    lcd_gotoxy(0, 0); //escolhe posicao
+//    lcd_puts(str); //atualiza o valor da posiçao
+//
+//
+//    if(M_ESQ>3300 && M_ESQ>M_DIR){ //se o motor da esquerda estiver a um valor superior ao da direita quer dizer que o carro esta a virar à direita
+//        lcd_gotoxy(0, 1); //escolhe posicao
+//        lcd_puts(strdir); //atualiza o valor da posiçao
+//      }
+//    else if(M_DIR>3300 && M_ESQ<M_DIR){ //se o motor da direita estiver a um valor superior ao da esquerda quer dizer que o carro esta a virar à esquerda
+//        lcd_gotoxy(0, 1);
+//        lcd_puts(stresq);
+//      }
+//
+//    else {
+//      lcd_gotoxy(0, 1);
+//      lcd_puts(strcen);
+//      }
+// }
+//      if(perdido=1){
+//        lcd_clrscr(); //limpa
+//        lcd_gotoxy(0, 0);
+//        lcd_puts(strperdido); }
+//
+//  }
+//}
+
+void timer_ir() {
+  TCCR2A = 0;
+  TCCR2B = 0b111;
+  TCNT2 = 0;
+}
+
+void int0_init() {
+  EICRA = 0b11;
+  DDRD &= ~(1 << IR_PIN);
+  EIMSK |= (1 << INT0);
+  sei();
+}
+
+//interrupcao que permite ler e guardar a informacao proveniente do comando
+ISR(INT0_vect) {
+  if (!ir_acabou_q) { //se nao houver uma leitura por ler
+    TCNT2 = 0;
+    while ((PIND & (1 << IR_PIN))) { //espera que acabe a componente positiva do sinal, se houver overflow é porque o sinal chegou ao fim
+      if (TCNT2 >= 254) {
+        break;
+        bit_IR = 0;
+      }
+    }
+    bit_IR--;
+
+    if (TCNT2 > 60 && TCNT2 < 80) { //o inicio do sinal é mais longo
+      bit_IR = 31;
+    }
+    if (TCNT2 > 15 && TCNT2 < 30) { //bit 1
+      buff_ir |= (1 <<  bit_IR);
+    }
+    if (bit_IR == 0) { //Se tcnt2 for maior que 254 o ultimo pulso chegou e a variável dados guarda a informacao enviada pelo comando
+      ir_acabou_q = 1;
+      dados = buff_ir;
+      //Serial.println(dados);
+      buff_ir = 0;
+    }
+  }
+}
+
+
+int main() {
+  int  pos, state = 0;
+  DDRB = DDRB | (1 << LED_AZUL);
+  DDRD = DDRD | (1 << LED_VERDE);
+  DDRD = DDRD | (1 << LED_VERM);
+  DDRB = DDRB | (1 << BUZZER);
+  int0_init();
+  timer_ir();
+  motores_pwm();
+  adc_init();
+  while (1) {
+
+    pos = deteta_pos();
+    controlo_pos(pos);
+    if (levantado == 1) {
+        M_ESQ = 0;
+        M_DIR = 0;
+      }
+
+    /*switch (state) {
+      case (0):
+        if (VALUE_IR_ON == dados  && (0 == levantado)) {
+          state = 1;
+          dados = 0;
+        }
+        if ((dados != VALUE_IR_ON) && (1 == levantado)) {
+          state = 2;
+        }
+      case (1):
+        if (VALUE_IR_ON == dados ) {
+          state = 0;
+          dados = 0;
+        }
+      case (2):
+        if (VALUE_IR_ON == dados ) {
+          state = 0;
+          dados = 0;
+        }
+    }
+
+    if (0 == state) {
+      PORTD = PORTD & ~((1 << BUZZER)); //desliga buzzer
+      PORTD = PORTD & ~((1 << LED_VERDE)); //desliga o led verde
+      PORTD |= (1 << LED_VERM); //liga o led vermelho
+
+      if (levantado == 1) {
+        PORTD = PORTD & ~((1 << LED_VERM)); //desliga o led vermelho
+        PORTB |= (1 << LED_AZUL); //liga o led azul
+      }
+
+      else {
+        PORTB = PORTB & ~((1 << LED_AZUL)); //desliga o led azul
+      }
+
+      //Serial.println("buzina desligada");
+      M_ESQ = 0;
+      M_DIR = 0;
+
+    }
+    if (1 == state) {
+      PORTD = PORTD & ~((1 << BUZZER)); //desliga o buzzer
+      PORTD = PORTD & ~((1 << LED_VERM)); //desliga o led vermelho
+      if (levantado == 1) {
+        PORTD = PORTD & ~((1 << LED_VERDE));
+        PORTB |= (1 << LED_AZUL); //liga o led
+      }
+
+      else {
+        PORTB = PORTB & ~((1 << LED_AZUL));
+        PORTD |= (1 << LED_VERDE);
+      }
+      //Serial.println("buzina desligada");
+    }
+    if (2 == state) {
+      PORTD |= (1 << BUZZER);
+      PORTD = PORTD & ~((1 << LED_VERM)); //desliga o led vermelho
+      PORTD = PORTD & ~((1 << LED_VERDE)); //desliga o led verde
+
+      if (levantado == 1) {
+        PORTB |= (1 << LED_AZUL);
+        M_ESQ = 0;
+        M_DIR = 0;
+      }
+      else {
+        PORTB = PORTB & ~((1 << LED_AZUL));
+        M_ESQ = 0;
+        M_DIR = 0;
+
+      }
+    }
+    ir_acabou_q = 0;
+
+//    Serial.print("state");
+//    Serial.println(state);
+
+    //imprimir_lcd(pos);
+    //        Serial.print("Motor esq");
+    //        Serial.print("-");
+    //        Serial.println(OCR1A);
+    //        Serial.print("Motor dir");
+    //        Serial.print("-");
+    //        Serial.println(OCR1B);
+*/
+
+  }
+
+}
