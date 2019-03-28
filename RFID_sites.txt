@@ -1,3 +1,6 @@
 https://randomnerdtutorials.com/security-access-using-mfrc522-rfid-reader-with-arduino/
 https://www.instructables.com/id/AVRArduino-RFID-Reader-with-UART-Code-in-C/
 https://playground.arduino.cc/Learning/PRFID/
+
+
+ELECTROMAGNET: wiki.seeedstudio.com/Grove-Electromagnet/#specifications
