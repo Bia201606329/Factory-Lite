@@ -480,13 +480,13 @@ void control(void)
     } else if (robot.state == 6) {  // avança durante alguns segundos 
       robot.solenoid_state = 1;
       moveRobot(60, 0); 
-    } else if (robot.state == 7 || robot.state == 22 || robot.state == 30) {  //recua da maquina sem iman
+    } else if (robot.state == 7 || robot.state == 22 || robot.state == 30 || robot.state == 40) {  //recua sem iman
       robot.solenoid_state = 0;
       moveRobot(-60, 0);
     } else if (robot.state == 8 || robot.state == 26 || robot.state == 32) { //segue a linha pela esquerda sem iman
       robot.solenoid_state = 0;
       followLineLeft(Vmed, kapa);
-    } else if (robot.state == 9 || robot.state == 23 || robot.state == 27 || robot.state == 24 || robot.state == 31) { //segue a linha pela direita sem iman
+    } else if (robot.state == 9 || robot.state == 23 || robot.state == 27 || robot.state == 24 || robot.state == 31 || robot.state == 41 || robot.state == 42) { //segue a linha pela direita sem iman
       robot.solenoid_state = 0;
       followLineRight(Vmed, kapa);
     } else if(robot.state ==10){
@@ -495,7 +495,7 @@ void control(void)
     } else if(robot.state ==11 || robot.state == 34 || robot.state == 37){ //recuar com iman
       robot.solenoid_state = 1;
       moveRobot(-60, 0);
-    } else if(robot.state == 12 || robot.state == 39){ //direita com iman
+    } else if(robot.state == 12 || robot.state == 39 || robot.state == 43){ //direita com iman
       robot.solenoid_state = 1;
       followLineRight(Vmed, kapa);
     } else if(robot.state == 13 || robot.state == 15){
@@ -516,41 +516,7 @@ void control(void)
     } else if(robot.state == 25){
       robot.solenoid_state = 0;
       moveRobot(Vmed, 0);
-    } else if(robot.state == 28){
-      
-    } else if(robot.state == 29){
-      
-    } else if(robot.state == 30){
-      
-    } else if(robot.state == 31){
-      
-    } else if(robot.state == 32){
-      
-    } else if(robot.state == 33){
-      
-    } else if(robot.state == 34){
-      
-    } else if(robot.state == 35){
-      
-    } else if(robot.state == 36){
-      
-    } else if(robot.state == 37){
-      
-    } else if(robot.state == 38){
-      
-    } else if(robot.state == 39){
-      
-    } else if(robot.state == 40){
-      
-    } else if(robot.state == 41){
-      
-    } else if(robot.state == 42){
-      
-    } else if(robot.state == 43){
-      
-    }
-
-    
+    } 
     
 }
 
