@@ -287,7 +287,7 @@ void control(void)
      else if(robot.state == 6 && tis > 1600) { //avança durante alguns segundos para deixar a peça na maquina, incrementa MA1
       setState(7);
      }
-     else if(robot.state == 7 && IRLine.crosses > 0 ) { //recua ate chegar ao cruzamento para a maquina 
+     else if(robot.state == 7 && IRLine.crosses >= 1 ) { //recua ate chegar ao cruzamento para a maquina 
       setState(8);
      }  
      else if(robot.state == 8 && IRLine.crosses >=(cont_ini+1)) { //segue pela direita ate cont_ini+1
