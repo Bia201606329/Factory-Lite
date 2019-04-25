@@ -189,7 +189,8 @@ void readIRSensors(void)
 
 uint32_t tis;
 uint32_t current, previous, interval = 40000UL;
-uint8_t cont_ini=0, RFID=1, MA1=0, aux=0, MA2=0, cont_arm=0;
+uint8_t cont_ini=0, RFID=1, MA1=0, aux=0, MA2=0, cont_arm=0, RFID_vect_test[4], i=0;
+
 
 robot_t robot;
 
@@ -272,9 +273,15 @@ void setState(byte new_state)
 
 void control(void)
 {
-  
+/********FOR TESTING********/
+      RFID_vect_test[0]=1;
+      RFID_vect_test[1]=1;
+      RFID_vect_test[2]=1;
+      RFID_vect_test[3]=0;
+/**************************/
   
     if (robot.state==1 && TouchSwitch && cont_ini==0){ //avança (pela esquerda) até detetor fim de curso
+      RFID=RFID_vect_test[i]; i++;//TESTING
       setState(2);
       
     }
@@ -308,6 +315,7 @@ void control(void)
       cont_ini++;
      }   
       else if(robot.state == 10 && TouchSwitch) { 
+      RFID=RFID_vect_test[i]; i++;//TESTING
       setState(11);  
      }
       else if(robot.state == 11 && IRLine.crosses>=1 && RFID==0) { 
@@ -316,10 +324,10 @@ void control(void)
      else if(robot.state == 12 && IRLine.crosses>=(5-(cont_ini-1))) { 
       setState(13);  
      }
-     else if(robot.state == 13 && tis > 1100) { 
+     else if(robot.state == 13 && tis > 1050) { 
       setState(14);  
      }
-     else if(robot.state == 14 && IRLine.crosses>=(3+cont_ini-1)) { 
+     else if(robot.state == 14 && IRLine.crosses>=(3+cont_arm)) { 
       setState(15);  
      }
      else if(robot.state == 15 && tis > 300) { 
@@ -334,10 +342,10 @@ void control(void)
      else if(robot.state == 17 && IRLine.crosses>=cont_ini && MA1==0) { 
       setState(6);  
      }
-      else if(robot.state == 17 && IRLine.crosses>=cont_ini && MA1==1) { 
+      else if(robot.state == 17 && IRLine.crosses>=(cont_ini) && MA1==1) { 
       setState(18);  
      }
-      else if(robot.state == 18 && IRLine.crosses>=2) { 
+      else if(robot.state == 18 && IRLine.crosses>=1) { 
       setState(29);  
      }
       else if(robot.state == 28 && IRLine.crosses>=2) { 
@@ -367,10 +375,10 @@ void control(void)
       setState(39);  
      }
       else if(robot.state == 39 && tis > 1600) { 
-      cont_arm++;
       setState(40);  
      }
       else if(robot.state == 40 && IRLine.crosses>=1) { 
+      cont_arm++;
       setState(41);  
      }
       else if(robot.state == 41 && IRLine.crosses>=cont_arm) { 
@@ -474,7 +482,7 @@ void control(void)
     } else if (robot.state == 3 || robot.state == 19) {  // Turn 180 degrees
       robot.solenoid_state = 1;
       moveRobot(0, 50);
-    } else if (robot.state == 4) {  // segue pela esquerda com iman
+    } else if (robot.state == 4 || robot.state == 35 || robot.state == 36 || robot.state == 38 || robot.state == 33) {  // segue pela esquerda com iman
       robot.solenoid_state = 1;
       followLineLeft(Vmed, kapa);      
     } else if (robot.state == 6) {  // avança durante alguns segundos 
@@ -510,13 +518,16 @@ void control(void)
     } else if(robot.state == 17 || robot.state == 29){
       robot.solenoid_state = 1;
       followLineLeft(Vmed, kapa);
-    } else if(robot.state == 18 || robot.state == 20 || robot.state == 21 || robot.state == 28 || robot.state == 33 || robot.state == 35 || robot.state == 36 || robot.state == 38){ //esquerda com iman
+    } else if(robot.state == 18 || robot.state == 20 || robot.state == 28){ //direita com iman
       robot.solenoid_state = 1;
       followLineRight(Vmed, kapa);
     } else if(robot.state == 25){
       robot.solenoid_state = 0;
       moveRobot(Vmed, 0);
-    } 
+    } else if (robot.state == 21) {
+      robot.solenoid_state = 1;
+      followLineRight(Varm + 20*(cont_arm>0), -2.0);
+    }
     
 }
 
