@@ -15,7 +15,7 @@
 #define time_turn_l 600
 
 byte UsingSimulator;
-uint8_t cont_ini=0, RFID=1, MA1=0, aux=0, MA2=0, cont_arm=0, RFID_vect_test[4], i=0;
+uint8_t cont_ini=0, RFID, MA1=0, aux=0, MA2=0, cont_arm=0, RFID_vect_test[4], i=0;
 
 channels_t serial_channels;
 byte go;
@@ -59,7 +59,7 @@ byte readTouchSwicth(void)
 {
   byte ret;
   pinMode(TOUCHSW, INPUT_PULLUP);
-  ret = !digitalRead(TOUCHSW);
+  ret = digitalRead(TOUCHSW);
   pinMode(TOUCHSW, OUTPUT);
   return ret;
 }
@@ -136,7 +136,7 @@ void setup()
   SPI.begin(); // Init SPI bus
   rfid.PCD_Init(); // Init MFRC522 
 
-  UsingSimulator = 1;
+  UsingSimulator = 0;
 
 }
 
@@ -282,6 +282,7 @@ void setState(byte new_state)
 {
   tis = 0;
   robot.state = new_state;
+  IRLine.crosses=0;
 }
 
 void control(void)
@@ -312,11 +313,11 @@ else if(RFID_result==TAG_GREEN) RFID=1;
       if (RFID==1) {setState(3); cont_ini++;}
       else if(RFID==0) {setState(19); cont_ini++;}
     }
-    else if(robot.state == 3 && tis > 1600 && IRLine.total > 1500) { //vira 180 e avança pela esquerda
+    else if(robot.state == 3 && tis > 1200 && IRLine.total > 1500) { //vira 180 e avança pela esquerda
       if(MA1==0) setState(4);
       else if(MA1==1) setState(28);
      }
-     else if(robot.state == 4 && IRLine.crosses>=1 && tis>4000) {  
+     else if(robot.state == 4 && IRLine.crosses>=1 ) {  //&& tis>4000
       setState(6);
      }
      else if(robot.state == 6 && tis > time_drop) { //avança durante alguns segundos para deixar a peça na maquina, incrementa MA1
@@ -334,10 +335,10 @@ else if(RFID_result==TAG_GREEN) RFID=1;
       cont_ini++;
      }   
       else if(robot.state == 10 && TouchSwitch) { 
-      RFID=RFID_vect_test[i]; i++;//TESTING
-      setState(300);  
+      //RFID=RFID_vect_test[i]; i++;//TESTING
+      setState(80);  
      }
-      else if (robot.state==300 && tis>500){  
+      else if (robot.state==80 && tis>500){  
       setState(11);
     }
       else if(robot.state == 11 && IRLine.crosses>=1 && RFID==0) { 
@@ -388,9 +389,9 @@ else if(RFID_result==TAG_GREEN) RFID=1;
      }
       else if(robot.state == 33 && TouchSwitch) { 
       MA2=0;
-      setState(400);  
+      setState(95);  
      }
-      else if (robot.state==400 && tis>500){  
+      else if (robot.state==95 && tis>500){  
       setState(34);
     }
       else if(robot.state == 34 && IRLine.crosses>=1) { 
@@ -427,9 +428,9 @@ else if(RFID_result==TAG_GREEN) RFID=1;
      }
      else if(robot.state == 36 && TouchSwitch){
       MA1=0;
-      setState(500);
+      setState(90);
      }
-      else if (robot.state==500 && tis>500){  
+      else if (robot.state==90 && tis>500){  
       setState(37);
     }
      else if(robot.state == 37 && IRLine.crosses>=1){
@@ -471,7 +472,7 @@ else if(RFID_result==TAG_GREEN) RFID=1;
       setState(43);
      }
      else if(robot.state == 43 && TouchSwitch){
-      setState(300);
+      setState(80);
      }
      
      
@@ -501,7 +502,7 @@ else if(RFID_result==TAG_GREEN) RFID=1;
       robot.solenoid_state = 0;
       moveRobot(0, 0);
     
-    } else if (robot.state == 1) {  // Go: Get first box
+    } else if (robot.state == 1 || robot.state==100) {  // Go: Get first box
       robot.solenoid_state = 1;
       followLineLeft(Vmed, kapa, ke);   
     } else if (robot.state == 2) {  // Go back with the box 23w
@@ -510,7 +511,7 @@ else if(RFID_result==TAG_GREEN) RFID=1;
     } else if (robot.state == 3 || robot.state == 19) {  // Turn 180 degrees
       robot.solenoid_state = 1;
       moveRobot(0, 50);
-    } else if (robot.state == 4 || robot.state == 35 || robot.state == 36 || robot.state == 38 || robot.state == 33) {  // segue pela esquerda com iman
+    } else if (robot.state == 4 || robot.state == 35 || robot.state == 36 || robot.state == 38 || robot.state == 33 || robot.state == 95 || robot.state ==90) {  // segue pela esquerda com iman
       robot.solenoid_state = 1;
       followLineLeft(Vmed, kapa, ke);      
     } else if (robot.state == 6) {  // avança durante alguns segundos 
@@ -525,7 +526,7 @@ else if(RFID_result==TAG_GREEN) RFID=1;
     } else if (robot.state == 9 || robot.state == 23 || robot.state == 27 || robot.state == 24 || robot.state == 31 || robot.state == 41 || robot.state == 42) { //segue a linha pela direita sem iman
       robot.solenoid_state = 0;
       followLineRight(Vmed, kapa, ke);
-    } else if(robot.state ==10){
+    } else if(robot.state ==10 || robot.state==80){
       robot.solenoid_state = 1;
       followLineLeft(Vmed, kapa, ke);
     } else if(robot.state ==11 || robot.state == 34 || robot.state == 37){ //recuar com iman
@@ -554,8 +555,8 @@ else if(RFID_result==TAG_GREEN) RFID=1;
       moveRobot(Vmed, 0);
     } else if (robot.state == 21) {
       robot.solenoid_state = 1;
-      followLineRight(Varm + 20*(cont_arm>0), kapa, ke);
-    }
+      followLineRight(Vmed -10, kapa, ke);
+    } 
     
 }
 
